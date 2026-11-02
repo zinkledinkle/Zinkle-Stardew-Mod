@@ -1,0 +1,10 @@
+{
+  "Name": "Zinkle's Stardew Mod",
+  "Author": "Zinkle",
+  "Version": "0.0.1",
+  "Description": "I'm not telling...",
+  "UniqueID": "Zinkle.ZinkleStardewMod",
+  "EntryDll": "ZinkleStardewMod.dll",
+  "MinimumApiVersion": "4.0.0",
+  "UpdateKeys": []
+}
