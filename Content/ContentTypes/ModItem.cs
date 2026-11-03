@@ -11,11 +11,11 @@ namespace ZinkleStardewMod.Content.ContentTypes;
 public abstract class ModItem : IModContent
 {
     public virtual void Load() { }
-    public virtual string InternalName => $"{ModEntry.Instance.ModManifest.UniqueID}_{GetType().Name}";
+    public virtual string InternalName => $"{Instance.ModManifest.UniqueID}_{GetType().Name}";
     public abstract string DisplayName { get; }
     public virtual string Description { get; } = "";
     public virtual string SpriteDirectory { get; } = "Objects";
-    public string TexturePath => $"Mods/{ModEntry.Instance.ModManifest.UniqueID}/{SpriteDirectory}";
+    public string TexturePath => $"Mods/{Instance.ModManifest.UniqueID}/{SpriteDirectory}";
     public abstract int SpriteIndex { get; }
     public int Category { get; protected set; } = Categories.Junk;
     public string Type { get; protected set; } = Types.Basic;
@@ -155,7 +155,10 @@ public class ModItemLoader : ContentLoader<ModItem>
         base.Load();
         HarmonyInstance.Patch(
             original: AccessTools.DeclaredMethod(typeof(Slingshot), nameof(Slingshot.canThisBeAttached), [typeof(SObject), typeof(int)]),
-            prefix: new HarmonyMethod(typeof(ModItemLoader), nameof(PrefixSlingshotAttach)));
+            prefix: new HarmonyMethod(typeof(ModItemLoader), nameof(PrefixAttach)));
+        HarmonyInstance.Patch(
+            original: AccessTools.DeclaredMethod(typeof(FishingRod), nameof(Slingshot.canThisBeAttached), [typeof(SObject), typeof(int)]),
+            prefix: new HarmonyMethod(typeof(ModItemLoader), nameof(PrefixAttach)));
     }
     public override void AddContent(ModItem content, AssetRequestedEventArgs e)
     {
@@ -203,11 +206,12 @@ public class ModItemLoader : ContentLoader<ModItem>
             });
         }
     }
-    private static bool PrefixSlingshotAttach(ref bool __result, SObject o, int slot)
+    private static bool PrefixAttach(ref bool __result, Tool __instance, SObject o, int slot)
     {
         if (o.ModItem != null)
         {
-            __result = o.ModItem!.CanAttachTo(new Slingshot(), slot);
+            Game1.timeOfDay = 900;
+            __result = o.ModItem!.CanAttachTo(__instance, slot);
             return false;
         }
         return true;
@@ -218,5 +222,9 @@ public static class ModItemHelper
     extension(SObject obj)
     {
         public ModItem? ModItem => ModItemLoader.Items.Values.FirstOrDefault(i => i.InternalName == obj.ItemId);
+    }
+    extension<T>(T) where T : ModItem
+    {
+        public static string ItemID => $"{Instance.ModManifest.UniqueID}_{typeof(T).Name}";
     }
 }

@@ -8,6 +8,7 @@ using ZinkleStardewMod.Content.ContentTypes;
 
 namespace ZinkleStardewMod.Content.Items;
 
+[HarmonyPatch(typeof(BasicProjectile), nameof(BasicProjectile.behaviorOnCollisionWithMonster), [typeof(NPC), typeof(GameLocation)])]
 public class RockThatKillsMarnie : ModItem
 {
     public override string DisplayName => "Rock That Kills Marnie";
@@ -27,9 +28,6 @@ public class RockThatKillsMarnie : ModItem
     public override void Load()
     {
         SoundLoader.AddSound("KILL", out Sound, SoundLoader.Categories.Sound, true, false);
-        HarmonyInstance.Patch(
-            original: AccessTools.DeclaredMethod(typeof(BasicProjectile), nameof(BasicProjectile.behaviorOnCollisionWithMonster), [typeof(NPC), typeof(GameLocation)]),
-            prefix: new HarmonyMethod(typeof(RockThatKillsMarnie), nameof(PrefixShootMarnie)));
     }
     public override void SetProperties()
     {
@@ -38,12 +36,13 @@ public class RockThatKillsMarnie : ModItem
     }
     public override IEnumerable<(string, int)> GetRecipe(ref int outputAmount) => [(SObject.stoneID, 5)];
     public override bool CanAttachTo(Tool tool, int slot) => tool is Slingshot;
+    [HarmonyPrefix]
     private static bool PrefixShootMarnie(BasicProjectile __instance, NPC n, GameLocation location)
     {
-        if (!n.displayName.Contains("Marnie") || !__instance.itemId.Contains("Marnie"))
+        if (!n.displayName.Contains("Marnie") || __instance.itemId.Value != RockThatKillsMarnie.ItemID)
             return true;
         Game1.playSound(Sound);
-        for (int i = 0; i < 5; i++)
+        for (int i = 0; i < 10; i++)
             Game1.createRadialDebris(location, 1, (int)(n.position.X + 32f + Game1.random.Next(-16, 16)) / 64, (int)(n.position.Y + 32f + Game1.random.Next(-16, 16)) / 64, 6, false, 1, false, Color.Red);
         for (int x = (int)n.Position.X - 50; x < n.Position.X + 50; x++)
         {
