@@ -9,7 +9,7 @@ using ZinkleStardewMod.Content.ContentTypes;
 namespace ZinkleStardewMod.Content.Items;
 
 [HarmonyPatch(typeof(BasicProjectile), nameof(BasicProjectile.behaviorOnCollisionWithMonster), [typeof(NPC), typeof(GameLocation)])]
-public class RockThatKillsMarnie : ModItem
+public class RockThatKillsMarnie : ModObject
 {
     public override string DisplayName => "Rock That Kills Marnie";
     public override string Description => 
@@ -39,7 +39,7 @@ public class RockThatKillsMarnie : ModItem
     [HarmonyPrefix]
     private static bool PrefixShootMarnie(BasicProjectile __instance, NPC n, GameLocation location)
     {
-        if (!n.displayName.Contains("Marnie") || __instance.itemId.Value != RockThatKillsMarnie.ItemID)
+        if (!n.displayName.Contains("Marnie") || __instance.itemId.Value != $"(O){RockThatKillsMarnie.ItemID}")
             return true;
         Game1.playSound(Sound);
         for (int i = 0; i < 10; i++)
@@ -54,7 +54,7 @@ public class RockThatKillsMarnie : ModItem
                 location.temporarySprites.Add(new TemporaryAnimatedSprite(13, pos, Color.Red, 2, false, 100f, 0, -1, 1f, -1, Game1.random.Next(60)));
             }
         }
-        n.position.Y -= 1000; //bye bye
+        n.position.Y -= 2000; //bye bye
 
         return false;
     }

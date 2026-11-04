@@ -1,4 +1,5 @@
 using HarmonyLib;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI.Events;
 using StardewValley;
@@ -8,7 +9,7 @@ using ZinkleStardewMod.content;
 
 namespace ZinkleStardewMod.Content.ContentTypes;
 
-public abstract class ModItem : IModContent
+public abstract class ModObject : IModItem
 {
     public virtual void Load() { }
     public virtual string InternalName => $"{Instance.ModManifest.UniqueID}_{GetType().Name}";
@@ -88,7 +89,7 @@ public abstract class ModItem : IModContent
     public virtual void SetProperties() { }
     public virtual bool CanAttachTo(Tool tool, int slot) => false;
     public virtual IEnumerable<(string, int)> GetRecipe(ref int outputAmount) => [];
-
+    public virtual bool PreDraw(SpriteBatch spriteBatch, Vector2 position, float scale, float transparency, float layerDepth, StackDrawType drawStackNumber, Color color, bool drawShadow) => true;
     #region Helpers
     public static class Categories
     {
@@ -146,24 +147,28 @@ public abstract class ModItem : IModContent
     }
     #endregion
 }
-public class ModItemLoader : ContentLoader<ModItem>
+public class ModObjectLoader : ContentLoader<ModObject>
 {
-    private static readonly Dictionary<string, ModItem> _items = [];
-    public static IReadOnlyDictionary<string, ModItem> Items => _items;
+    private static readonly Dictionary<string, ModObject> _objects = [];
+    public static IReadOnlyDictionary<string, ModObject> Objects => _objects;
     public override void Load()
     {
         base.Load();
         HarmonyInstance.Patch(
             original: AccessTools.DeclaredMethod(typeof(Slingshot), nameof(Slingshot.canThisBeAttached), [typeof(SObject), typeof(int)]),
-            prefix: new HarmonyMethod(typeof(ModItemLoader), nameof(PrefixAttach)));
+            prefix: new HarmonyMethod(typeof(ModObjectLoader), nameof(PrefixAttach)));
         HarmonyInstance.Patch(
             original: AccessTools.DeclaredMethod(typeof(FishingRod), nameof(Slingshot.canThisBeAttached), [typeof(SObject), typeof(int)]),
-            prefix: new HarmonyMethod(typeof(ModItemLoader), nameof(PrefixAttach)));
+            prefix: new HarmonyMethod(typeof(ModObjectLoader), nameof(PrefixAttach)));
+        //HarmonyInstance.Patch(
+        //    original: AccessTools.DeclaredMethod(typeof(Item), nameof(Item.drawInMenu), [typeof(SpriteBatch), typeof(Vector2), typeof(float), typeof(float), typeof(float), typeof(StackDrawType), typeof(Color), typeof(bool)]),
+        //    prefix: new HarmonyMethod(typeof(ModObjectLoader), nameof(PrefixDraw)));
     }
-    public override void AddContent(ModItem content, AssetRequestedEventArgs e)
+    public override void AddContent(ModObject content, AssetRequestedEventArgs e)
     {
+        content.Load();
         content.SetProperties();
-        _items[content.InternalName] = content;
+        _objects[content.InternalName] = content;
         if (e.NameWithoutLocale.IsEquivalentTo(content.TexturePath))
             e.LoadFromModFile<Texture2D>("assets/Objects.png", AssetLoadPriority.Exclusive);
         if (e.NameWithoutLocale.IsEquivalentTo("Data/Objects"))
@@ -171,7 +176,7 @@ public class ModItemLoader : ContentLoader<ModItem>
             e.Edit(asset =>
             {
                 var data = asset.AsDictionary<string, ObjectData>().Data;
-                ObjectData rktmData = new()
+                ObjectData objectData = new()
                 {
                     Name = content.InternalName,
                     DisplayName = content.DisplayName,
@@ -183,7 +188,7 @@ public class ModItemLoader : ContentLoader<ModItem>
                     SpriteIndex = content.SpriteIndex,
                     ContextTags = [..content.ContextTags],
                 };
-                data[content.InternalName] = rktmData;
+                data[content.InternalName] = objectData;
             });
         }
         if (e.NameWithoutLocale.IsEquivalentTo("Data/CraftingRecipes"))
@@ -208,23 +213,25 @@ public class ModItemLoader : ContentLoader<ModItem>
     }
     private static bool PrefixAttach(ref bool __result, Tool __instance, SObject o, int slot)
     {
-        if (o.ModItem != null)
+        if (o.ModObject != null)
         {
             Game1.timeOfDay = 900;
-            __result = o.ModItem!.CanAttachTo(__instance, slot);
+            __result = o.ModObject!.CanAttachTo(__instance, slot);
             return false;
         }
         return true;
     }
+    private static bool PrefixDraw(Item __instance, SpriteBatch spriteBatch, Vector2 location, float scaleSize, float transparency, float layerDepth, StackDrawType drawStackNumber, Color color, bool drawShadow)
+    {
+        if (Objects.TryGetValue(__instance.ItemId, out var obj))
+            return obj.PreDraw(spriteBatch, location, scaleSize, transparency, layerDepth, drawStackNumber, color, drawShadow);
+        return true;
+    }
 }
-public static class ModItemHelper
+public static class ModObjectHelper
 {
     extension(SObject obj)
     {
-        public ModItem? ModItem => ModItemLoader.Items.Values.FirstOrDefault(i => i.InternalName == obj.ItemId);
-    }
-    extension<T>(T) where T : ModItem
-    {
-        public static string ItemID => $"{Instance.ModManifest.UniqueID}_{typeof(T).Name}";
+        public ModObject? ModObject => ModObjectLoader.Objects.Values.FirstOrDefault(i => i.InternalName == obj.ItemId);
     }
 }
