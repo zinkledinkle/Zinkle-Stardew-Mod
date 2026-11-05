@@ -15,8 +15,9 @@ public abstract class ModObject : IModItem
     public virtual string InternalName => $"{Instance.ModManifest.UniqueID}_{GetType().Name}";
     public abstract string DisplayName { get; }
     public virtual string Description { get; } = "";
-    public virtual string SpriteDirectory { get; } = "Objects";
+    public virtual string SpriteDirectory { get; } = "objects";
     public string TexturePath => $"Mods/{Instance.ModManifest.UniqueID}/{SpriteDirectory}";
+    public string LocalTexturePath => $"Assets/{SpriteDirectory}.png";
     public abstract int SpriteIndex { get; }
     public int Category { get; protected set; } = Categories.Junk;
     public string Type { get; protected set; } = Types.Basic;
@@ -89,7 +90,8 @@ public abstract class ModObject : IModItem
     public virtual void SetProperties() { }
     public virtual bool CanAttachTo(Tool tool, int slot) => false;
     public virtual IEnumerable<(string, int)> GetRecipe(ref int outputAmount) => [];
-    public virtual bool PreDraw(SpriteBatch spriteBatch, Vector2 position, float scale, float transparency, float layerDepth, StackDrawType drawStackNumber, Color color, bool drawShadow) => true;
+    public virtual bool PreDraw(SObject sobject, SpriteBatch spriteBatch, Vector2 position, float scale, float transparency, float layerDepth, StackDrawType drawStackNumber, Color color, bool drawShadow) => true;
+    public virtual bool PrePlace(GameLocation location, int x, int y, ref bool __result) => true;
     #region Helpers
     public static class Categories
     {
@@ -160,9 +162,12 @@ public class ModObjectLoader : ContentLoader<ModObject>
         HarmonyInstance.Patch(
             original: AccessTools.DeclaredMethod(typeof(FishingRod), nameof(Slingshot.canThisBeAttached), [typeof(SObject), typeof(int)]),
             prefix: new HarmonyMethod(typeof(ModObjectLoader), nameof(PrefixAttach)));
-        //HarmonyInstance.Patch(
-        //    original: AccessTools.DeclaredMethod(typeof(Item), nameof(Item.drawInMenu), [typeof(SpriteBatch), typeof(Vector2), typeof(float), typeof(float), typeof(float), typeof(StackDrawType), typeof(Color), typeof(bool)]),
-        //    prefix: new HarmonyMethod(typeof(ModObjectLoader), nameof(PrefixDraw)));
+        HarmonyInstance.Patch(
+            original: AccessTools.DeclaredMethod(typeof(SObject), nameof(SObject.drawInMenu), [typeof(SpriteBatch), typeof(Vector2), typeof(float), typeof(float), typeof(float), typeof(StackDrawType), typeof(Color), typeof(bool)]),
+            prefix: new HarmonyMethod(typeof(ModObjectLoader), nameof(PrefixDraw)));
+        HarmonyInstance.Patch(
+            original: AccessTools.DeclaredMethod(typeof(Utility), nameof(Utility.tryToPlaceItem), [typeof(GameLocation), typeof(SObject), typeof(int), typeof(int)]),
+            prefix: new HarmonyMethod(typeof(ModObjectLoader), nameof(PrefixPlace)));
     }
     public override void AddContent(ModObject content, AssetRequestedEventArgs e)
     {
@@ -170,7 +175,7 @@ public class ModObjectLoader : ContentLoader<ModObject>
         content.SetProperties();
         _objects[content.InternalName] = content;
         if (e.NameWithoutLocale.IsEquivalentTo(content.TexturePath))
-            e.LoadFromModFile<Texture2D>("assets/Objects.png", AssetLoadPriority.Exclusive);
+            e.LoadFromModFile<Texture2D>(content.LocalTexturePath, AssetLoadPriority.Exclusive);
         if (e.NameWithoutLocale.IsEquivalentTo("Data/Objects"))
         {
             e.Edit(asset =>
@@ -221,10 +226,16 @@ public class ModObjectLoader : ContentLoader<ModObject>
         }
         return true;
     }
-    private static bool PrefixDraw(Item __instance, SpriteBatch spriteBatch, Vector2 location, float scaleSize, float transparency, float layerDepth, StackDrawType drawStackNumber, Color color, bool drawShadow)
+    private static bool PrefixDraw(SObject __instance, SpriteBatch spriteBatch, Vector2 location, float scaleSize, float transparency, float layerDepth, StackDrawType drawStackNumber, Color color, bool drawShadow)
     {
         if (Objects.TryGetValue(__instance.ItemId, out var obj))
-            return obj.PreDraw(spriteBatch, location, scaleSize, transparency, layerDepth, drawStackNumber, color, drawShadow);
+            return obj.PreDraw(__instance, spriteBatch, location, scaleSize, transparency, layerDepth, drawStackNumber, color, drawShadow);
+        return true;
+    }
+    private static bool PrefixPlace(GameLocation location, SObject item, int x, int y, ref bool __result)
+    {
+        if (Objects.TryGetValue(item.ItemId, out var obj))
+            return obj.PrePlace(location, x, y, ref __result);
         return true;
     }
 }

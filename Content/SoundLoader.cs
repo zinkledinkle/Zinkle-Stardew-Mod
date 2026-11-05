@@ -28,7 +28,7 @@ public static class SoundLoader
                     UseReverb = sound.Reverb,
                     FilePaths =
                     [
-                        Path.Combine(Instance.Helper.DirectoryPath, "assets", "sounds", sound.Path + ".wav")
+                        Path.Combine(Instance.Helper.DirectoryPath, "Assets", sound.Path + ".wav")
                     ],
                     StreamedVorbis = false,
                     Looped = sound.Loop

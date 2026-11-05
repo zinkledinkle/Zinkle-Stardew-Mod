@@ -1,7 +1,6 @@
 global using StardewModdingAPI;
 global using SObject = StardewValley.Object;
 global using static ZinkleStardewMod.ModEntry;
-global using static ZinkleStardewMod.Utils.Hooks;
 using HarmonyLib;
 using ZinkleStardewMod.Content;
 using ZinkleStardewMod.Utils;
@@ -19,5 +18,10 @@ internal sealed class ModEntry : Mod
         HarmonyInstance.PatchAll();
         Hooks.Load();
         ContentManager.LoadAllModContent();
+        helper.Events.Content.AssetRequested += (_, e) =>
+        {
+            if (!e.NameWithoutLocale.IsEquivalentTo("Data/AudioChanges")) return;
+            SoundLoader.LoadAllSounds(e);
+        };
     }
 }

@@ -5,6 +5,7 @@ using StardewValley.Extensions;
 using StardewValley.Projectiles;
 using StardewValley.Tools;
 using ZinkleStardewMod.Content.ContentTypes;
+using ZinkleStardewMod.Utils;
 
 namespace ZinkleStardewMod.Content.Items;
 
@@ -42,6 +43,7 @@ public class RockThatKillsMarnie : ModObject
         if (!n.displayName.Contains("Marnie") || __instance.itemId.Value != $"(O){RockThatKillsMarnie.ItemID}")
             return true;
         Game1.playSound(Sound);
+        MarnieData.SetMarnieDeadAsFuck(n, true);
         for (int i = 0; i < 10; i++)
             Game1.createRadialDebris(location, 1, (int)(n.position.X + 32f + Game1.random.Next(-16, 16)) / 64, (int)(n.position.Y + 32f + Game1.random.Next(-16, 16)) / 64, 6, false, 1, false, Color.Red);
         for (int x = (int)n.Position.X - 50; x < n.Position.X + 50; x++)
