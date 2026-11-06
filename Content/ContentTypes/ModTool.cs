@@ -9,25 +9,18 @@ using ZinkleStardewMod.content;
 
 namespace ZinkleStardewMod.Content.ContentTypes;
 
-public abstract class ModTool : IModContent
+public abstract class ModTool : ModItem
 {
-    public virtual void Load() { }
-    public virtual string InternalName => $"{Instance.ModManifest.UniqueID}_{GetType().Name}";
-    public virtual string SpriteDirectory { get; } = "Tools";
-    public string TexturePath => $"Mods/{Instance.ModManifest.UniqueID}/{SpriteDirectory}";
-    public abstract int SpriteIndex { get; }
+    public override string SpriteDirectory => "Tools";
     public virtual int MenuSpriteIndex => SpriteIndex;
-    public abstract string DisplayName { get; }
-    public virtual string Description { get; } = "";
-
     public virtual string Type => Types.Generic;
     public int Price { get; protected set; } = 1;
     public bool CanDropOnDeath { get; protected set; } = false;
+    public bool CanBeGifted { get; protected set; } = false;
     public int AttachmentSlots { get; protected set; } = 0;
     public int UpgradeLevel { get; protected set; } = -1;
     public string ConventionalUpgradeFrom { get; protected set; } = "";
     public Dictionary<string, string> ModData { get; protected set; } = [];
-    public virtual void SetProperties() { }
     public virtual bool CanAttachTo(Tool tool, int slot) => false;
     public virtual IEnumerable<(string, int)> GetRecipe(ref int outputAmount) => [];
     public virtual bool PreDrawInMenu(Tool tool, SpriteBatch spriteBatch, Vector2 position, float scale, float transparency, float layerDepth, StackDrawType drawStackNumber, Color color, bool drawShadow) => true;
@@ -57,13 +50,11 @@ public abstract class ModTool : IModContent
 }
 public class ModToolLoader : ContentLoader<ModTool>
 {
-    private static readonly Dictionary<string, ModTool> _tools = [];
-    public static IReadOnlyDictionary<string, ModTool> Tools => _tools;
+    public static IReadOnlyDictionary<string, ModTool> Tools => ((ContentLoader<ModTool>)ContentManager.Loaders["ModTool"]).Content.ToDictionary(t => t.InternalName);
     public override void AddContent(ModTool content, AssetRequestedEventArgs e)
     {
-        content.Load();
         content.SetProperties();
-        _tools[content.InternalName] = content;
+
         if (e.NameWithoutLocale.IsEquivalentTo(content.TexturePath))
             e.LoadFromModFile<Texture2D>($"Assets/{content.SpriteDirectory}.png", AssetLoadPriority.Exclusive);
         if (e.NameWithoutLocale.IsEquivalentTo("Data/Tools"))
@@ -94,19 +85,10 @@ public class ModToolLoader : ContentLoader<ModTool>
         {
             e.Edit(asset =>
             {
-                int outputCount = 1;
-                var recipe = content.GetRecipe(ref outputCount);
-                if (!recipe.Any()) return;
-
+                var recipe = content.Recipe.Value;
+                if (string.IsNullOrEmpty(recipe)) return;
                 var recipes = asset.AsDictionary<string, string>().Data;
-                string ingredients = "";
-                foreach(var (itemId, amount) in recipe)
-                    ingredients += $"{itemId} {amount} ";
-
-                string outputString = outputCount.ToString();
-                string unlockConditions = "default";
-                string recipeValue = $"{ingredients}/Home/{content.InternalName} {outputString}/false/{unlockConditions}";
-                recipes[content.InternalName] = recipeValue;
+                recipes[content.InternalName] = recipe;
             });
         }
     }
@@ -184,6 +166,14 @@ public static class ModToolPatches
     {
         if (__instance.ModTool is ModTool modTool)
             __result = modTool.CanDropOnDeath;
+        return true;
+    }
+    [HarmonyPatch(typeof(Item), nameof(Item.canBeGivenAsGift))]
+    [HarmonyPrefix]
+    private static bool CanBeGivenAsGiftPrefix(Item __instance, ref bool __result)
+    {
+        if (__instance is Tool tool && tool.ModTool is ModTool modTool)
+            __result = modTool.CanBeGifted;
         return true;
     }
 }

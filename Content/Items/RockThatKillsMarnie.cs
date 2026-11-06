@@ -34,8 +34,9 @@ public class RockThatKillsMarnie : ModObject
     {
         Type = Types.Basic;
         Category = Categories.Mineral;
+        AddRecipe()
+            .AddIngredient(SObject.stoneID, 5);
     }
-    public override IEnumerable<(string, int)> GetRecipe(ref int outputAmount) => [(SObject.stoneID, 5)];
     public override bool CanAttachTo(Tool tool, int slot) => tool is Slingshot;
     [HarmonyPrefix]
     private static bool PrefixShootMarnie(BasicProjectile __instance, NPC n, GameLocation location)

@@ -1,8 +1,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using StardewValley;
-using StardewValley.Menus;
-using System.Runtime.CompilerServices;
+using StardewValley.Extensions;
 using ZinkleStardewMod.Content.ContentTypes;
 
 namespace ZinkleStardewMod.Content.Items;
@@ -34,7 +33,12 @@ public class SloppyFinger : ModTool
         };
         Instance.Helper.Events.GameLoop.SaveLoaded += (_, _) =>
         {
-            if (!Game1.player.hasOrWillReceiveMail(letter)) Game1.player.mailbox.Add(letter);
+            if (!Game1.player?.hasOrWillReceiveMail(letter) is false && Game1.dayOfMonth >= 8) Game1.player.mailbox.Add(letter);
+        };
+        Instance.Helper.Events.Multiplayer.PeerConnected += (_, args) =>
+        {
+            var plr = Game1.GetPlayer(args.Peer.PlayerID);
+            if (plr?.hasOrWillReceiveMail(letter) is false && Game1.dayOfMonth >= 8) plr.mailbox.Add(letter);
         };
     }
     private static Texture2D? texture;
@@ -45,12 +49,12 @@ public class SloppyFinger : ModTool
     public override void SetProperties()
     {
         Price = -100;
+        CanBeGifted = false;
     }
     public override void PostBeginUsing(Tool tool, GameLocation location, Farmer who, int x, int y, ref bool __result)
     {
         time = maxTime;
         Game1.playSound(Sound);
-        who.health = who.maxHealth;
         who.animateOnce(FarmerSprite.showHoldingEdible);
         __result = true;
     }
@@ -66,6 +70,7 @@ public class SloppyFinger : ModTool
             who.EndUsingTool();
             return true;
         }
+        if (Game1.random.NextBool(0.6f)) return true;
         Point standingPixel = who.StandingPixel;
         who.currentLocation.debris.Add(new Debris(1, new Vector2(standingPixel.X + 8, standingPixel.Y), Color.Red, 1f, who));
         who.playNearbySoundAll("ow");

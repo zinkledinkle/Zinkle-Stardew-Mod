@@ -9,16 +9,9 @@ using ZinkleStardewMod.content;
 
 namespace ZinkleStardewMod.Content.ContentTypes;
 
-public abstract class ModObject : IModItem
+public abstract class ModObject : ModItem
 {
-    public virtual void Load() { }
-    public virtual string InternalName => $"{Instance.ModManifest.UniqueID}_{GetType().Name}";
-    public abstract string DisplayName { get; }
-    public virtual string Description { get; } = "";
-    public virtual string SpriteDirectory { get; } = "objects";
-    public string TexturePath => $"Mods/{Instance.ModManifest.UniqueID}/{SpriteDirectory}";
-    public string LocalTexturePath => $"Assets/{SpriteDirectory}.png";
-    public abstract int SpriteIndex { get; }
+    public override string SpriteDirectory => "objects";
     public int Category { get; protected set; } = Categories.Junk;
     public string Type { get; protected set; } = Types.Basic;
     public int Price { get; protected set; } = 1;
@@ -89,8 +82,8 @@ public abstract class ModObject : IModItem
 
     public virtual void SetProperties() { }
     public virtual bool CanAttachTo(Tool tool, int slot) => false;
-    public virtual IEnumerable<(string, int)> GetRecipe(ref int outputAmount) => [];
-    public virtual bool PreDraw(SObject sobject, SpriteBatch spriteBatch, Vector2 position, float scale, float transparency, float layerDepth, StackDrawType drawStackNumber, Color color, bool drawShadow) => true;
+    public virtual bool PreDrawInMenu(SObject sobject, SpriteBatch spriteBatch, Vector2 position, float scale, float transparency, float layerDepth, StackDrawType drawStackNumber, Color color, bool drawShadow) => true;
+    public virtual bool PreDraw(SObject sobject, SpriteBatch spriteBatch, int x, int y, float alpha) => true;
     public virtual bool PrePlace(GameLocation location, int x, int y, ref bool __result) => true;
     #region Helpers
     public static class Categories
@@ -151,8 +144,7 @@ public abstract class ModObject : IModItem
 }
 public class ModObjectLoader : ContentLoader<ModObject>
 {
-    private static readonly Dictionary<string, ModObject> _objects = [];
-    public static IReadOnlyDictionary<string, ModObject> Objects => _objects;
+    public static IReadOnlyDictionary<string, ModObject> Objects => ((ContentLoader<ModObject>)ContentManager.Loaders["ModObject"]).Content.ToDictionary(t => t.InternalName);
     public override void Load()
     {
         base.Load();
@@ -164,6 +156,9 @@ public class ModObjectLoader : ContentLoader<ModObject>
             prefix: new HarmonyMethod(typeof(ModObjectLoader), nameof(PrefixAttach)));
         HarmonyInstance.Patch(
             original: AccessTools.DeclaredMethod(typeof(SObject), nameof(SObject.drawInMenu), [typeof(SpriteBatch), typeof(Vector2), typeof(float), typeof(float), typeof(float), typeof(StackDrawType), typeof(Color), typeof(bool)]),
+            prefix: new HarmonyMethod(typeof(ModObjectLoader), nameof(PrefixDrawInMenu)));
+        HarmonyInstance.Patch(
+            original: AccessTools.DeclaredMethod(typeof(SObject), nameof(SObject.draw), [typeof(SpriteBatch), typeof(int), typeof(int), typeof(float)]),
             prefix: new HarmonyMethod(typeof(ModObjectLoader), nameof(PrefixDraw)));
         HarmonyInstance.Patch(
             original: AccessTools.DeclaredMethod(typeof(Utility), nameof(Utility.tryToPlaceItem), [typeof(GameLocation), typeof(SObject), typeof(int), typeof(int)]),
@@ -171,11 +166,10 @@ public class ModObjectLoader : ContentLoader<ModObject>
     }
     public override void AddContent(ModObject content, AssetRequestedEventArgs e)
     {
-        content.Load();
         content.SetProperties();
-        _objects[content.InternalName] = content;
-        if (e.NameWithoutLocale.IsEquivalentTo(content.TexturePath))
-            e.LoadFromModFile<Texture2D>(content.LocalTexturePath, AssetLoadPriority.Exclusive);
+
+        if (e.NameWithoutLocale.IsEquivalentTo(content.TexturePath) && ReferenceEquals(content, Content.First(item => item.TexturePath == content.TexturePath))) //only load once
+            e.LoadFromModFile<Texture2D>($"Assets/{content.SpriteDirectory}.png", AssetLoadPriority.High);
         if (e.NameWithoutLocale.IsEquivalentTo("Data/Objects"))
         {
             e.Edit(asset =>
@@ -200,19 +194,10 @@ public class ModObjectLoader : ContentLoader<ModObject>
         {
             e.Edit(asset =>
             {
-                int outputCount = 1;
-                var recipe = content.GetRecipe(ref outputCount);
-                if (!recipe.Any()) return;
-
+                var recipe = content.Recipe.Value;
+                if (string.IsNullOrEmpty(recipe)) return;
                 var recipes = asset.AsDictionary<string, string>().Data;
-                string ingredients = "";
-                foreach(var (itemId, amount) in recipe)
-                    ingredients += $"{itemId} {amount} ";
-
-                string outputString = outputCount.ToString();
-                string unlockConditions = "default";
-                string recipeValue = $"{ingredients}/Home/{content.InternalName} {outputString}/false/{unlockConditions}";
-                recipes[content.InternalName] = recipeValue;
+                recipes[content.InternalName] = recipe;
             });
         }
     }
@@ -226,10 +211,16 @@ public class ModObjectLoader : ContentLoader<ModObject>
         }
         return true;
     }
-    private static bool PrefixDraw(SObject __instance, SpriteBatch spriteBatch, Vector2 location, float scaleSize, float transparency, float layerDepth, StackDrawType drawStackNumber, Color color, bool drawShadow)
+    private static bool PrefixDrawInMenu(SObject __instance, SpriteBatch spriteBatch, Vector2 location, float scaleSize, float transparency, float layerDepth, StackDrawType drawStackNumber, Color color, bool drawShadow)
     {
         if (Objects.TryGetValue(__instance.ItemId, out var obj))
-            return obj.PreDraw(__instance, spriteBatch, location, scaleSize, transparency, layerDepth, drawStackNumber, color, drawShadow);
+            return obj.PreDrawInMenu(__instance, spriteBatch, location, scaleSize, transparency, layerDepth, drawStackNumber, color, drawShadow);
+        return true;
+    }
+    private static bool PrefixDraw(SObject __instance, SpriteBatch spriteBatch, int x, int y, float alpha)
+    {
+        if (Objects.TryGetValue(__instance.ItemId, out var obj))
+            return obj.PreDraw(__instance, spriteBatch, x, y, alpha);
         return true;
     }
     private static bool PrefixPlace(GameLocation location, SObject item, int x, int y, ref bool __result)
